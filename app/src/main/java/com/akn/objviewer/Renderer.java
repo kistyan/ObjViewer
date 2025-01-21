@@ -651,6 +651,6 @@ public class Renderer implements GLSurfaceView.Renderer {
         loadMatrices();
         drawModel();
 
-        System.out.println(glGetError());
+        //System.out.println(glGetError());
     }
 }

@@ -1,6 +1,7 @@
 package com.akn.objviewer;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.Map;
 
@@ -85,16 +86,17 @@ public class ObjParser {
                 Integer[][] triangle = triangles.get(triangleIndex);
 
                 Float[] faceTangent;
+                float[] edge1 = new float[]{
+                        vertices.get(triangle[1][0])[0] - vertices.get(triangle[0][0])[0],
+                        vertices.get(triangle[1][0])[1] - vertices.get(triangle[0][0])[1],
+                        vertices.get(triangle[1][0])[2] - vertices.get(triangle[0][0])[2]
+                }, edge2 = new float[]{
+                        vertices.get(triangle[2][0])[0] - vertices.get(triangle[0][0])[0],
+                        vertices.get(triangle[2][0])[1] - vertices.get(triangle[0][0])[1],
+                        vertices.get(triangle[2][0])[2] - vertices.get(triangle[0][0])[2]
+                };
                 if (triangle[0][1] != null && triangle[1][1] != null && triangle[1][2] != null) {
-                    float[] edge1 = new float[]{
-                            vertices.get(triangle[1][0])[0] - vertices.get(triangle[0][0])[0],
-                            vertices.get(triangle[1][0])[1] - vertices.get(triangle[0][0])[1],
-                            vertices.get(triangle[1][0])[2] - vertices.get(triangle[0][0])[2]
-                    }, edge2 = new float[]{
-                            vertices.get(triangle[2][0])[0] - vertices.get(triangle[0][0])[0],
-                            vertices.get(triangle[2][0])[1] - vertices.get(triangle[0][0])[1],
-                            vertices.get(triangle[2][0])[2] - vertices.get(triangle[0][0])[2]
-                    }, deltaUV1 = new float[]{
+                    float[] deltaUV1 = new float[]{
                             textureCoordinates.get(triangle[1][1])[0]
                                     - textureCoordinates.get(triangle[0][0])[0],
                             textureCoordinates.get(triangle[1][1])[1]
@@ -114,7 +116,11 @@ public class ObjParser {
                     normalizeVector(faceTangent);
                 }
                 else
-                    faceTangent = new Float[]{1f, 0f, 0f};
+                    faceTangent = new Float[]{
+                            edge1[0] - edge2[0],
+                            edge1[1] - edge2[1],
+                            edge1[2] - edge2[2],
+                    };
                 for (int pointIndex = 0; pointIndex < 3; pointIndex++) {
                     Integer[] point = triangle[pointIndex];
                     FloatArrayKey indexKey = new FloatArrayKey(new Float[][]{
