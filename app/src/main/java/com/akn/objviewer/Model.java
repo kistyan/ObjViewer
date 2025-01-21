@@ -1,7 +1,7 @@
 package com.akn.objviewer;
 
 public class Model {
-    private final float[] vertices, vertexNormals, textureCoordinates;
+    private final float[] vertices, vertexNormals, textureCoordinates, faceTangents;
     private final Surface[] surfaces;
     private final String[] materialLibraries;
 
@@ -9,12 +9,14 @@ public class Model {
             float[] vertices,
             float[] vertexNormals,
             float[] textureCoordinates,
+            float[] faceTangents,
             Surface[] surfaces,
             String[] materialLibraries
     ) {
         this.vertices = vertices;
         this.vertexNormals = vertexNormals;
         this.textureCoordinates = textureCoordinates;
+        this.faceTangents = faceTangents;
         this.surfaces = surfaces;
         this.materialLibraries = materialLibraries;
     }
@@ -37,5 +39,9 @@ public class Model {
 
     public String[] getMaterialLibraries() {
         return materialLibraries;
+    }
+
+    public float[] getFaceTangents() {
+        return faceTangents;
     }
 }

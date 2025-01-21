@@ -45,7 +45,8 @@ public class ViewActivity extends AppCompatActivity {
                     material.getDiffuseTexture(),
                     material.getAmbientTexture(),
                     material.getSpecularTexture(),
-                    material.getDissolveTexture()
+                    material.getDissolveTexture(),
+                    material.getNormalTexture()
             };
             for (String name : names)
                 if (name != null && !textures.containsKey(name))

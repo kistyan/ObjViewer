@@ -65,6 +65,9 @@ public class MtlParser {
                 case "map_d":
                     material.setDissolveTexture(tokens[1]);
                     break;
+                case "map_Kn":
+                    material.setNormalTexture(tokens[1]);
+                    break;
             }
         }
         if (material != null)

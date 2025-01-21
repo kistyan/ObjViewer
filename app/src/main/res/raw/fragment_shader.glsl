@@ -25,7 +25,7 @@ struct DirectionalLight {
 struct Material {
     vec3 ambientColor, diffuseColor, specularColor;
     float dissolve, specularHighlights;
-    sampler2D ambientTexture, diffuseTexture, specularTexture, dissolveTexture;
+    sampler2D ambientTexture, diffuseTexture, specularTexture, dissolveTexture, normalTexture;
 };
 
 #if POINT_LIGHT_COUNT > 0
@@ -44,10 +44,15 @@ uniform vec3 u_CameraPosition;
 uniform Material u_Material;
 
 varying vec2 v_TextureCoordinate;
-varying vec3 v_FragPosition, v_FragNormal;
+varying vec3 v_FragPosition;
+varying mat3 v_TBNMatrix;
 
 void main() {
     vec3 diffuse = vec3(0, 0, 0), specular = vec3(0, 0, 0);
+    vec3 normal = normalize(v_TBNMatrix * (texture2D(
+            u_Material.normalTexture,
+            vec2(v_TextureCoordinate.x, 1.0 - v_TextureCoordinate.y)
+    ).rgb * 2.0 - 1.0));
 
     #if POINT_LIGHT_COUNT > 0
     for (int pointLightIndex = 0; pointLightIndex < POINT_LIGHT_COUNT; pointLightIndex++) {
@@ -57,10 +62,10 @@ void main() {
         float lightDistance = length(lightOffset);
         float lightIntensity = u_PointLighting[pointLightIndex].intensity
                 / (lightDistance * lightDistance);
-        diffuse += max(dot(v_FragNormal, lightDirection), 0.0)
+        diffuse += max(dot(normal, lightDirection), 0.0)
                 * lightColor * lightIntensity;
         vec3 cameraDirection = normalize(u_CameraPosition - v_FragPosition);
-        vec3 reflectDirection = reflect(-lightDirection, v_FragNormal);
+        vec3 reflectDirection = reflect(-lightDirection, normal);
         specular += pow(max(dot(cameraDirection, reflectDirection), 0.0),
                 u_Material.specularHighlights) * u_Material.specularColor * lightColor
                 * lightIntensity;
@@ -78,9 +83,9 @@ void main() {
         if (acos(dot(lightDirection, normalize(-u_SpotLighting[spotLightIndex].direction)))
                 >= u_SpotLighting[spotLightIndex].angle)
             break;
-        diffuse += max(dot(v_FragNormal, lightDirection), 0.0) * lightColor * lightIntensity;
+        diffuse += max(dot(normal, lightDirection), 0.0) * lightColor * lightIntensity;
         vec3 cameraDirection = normalize(u_CameraPosition - v_FragPosition);
-        vec3 reflectDirection = reflect(-lightDirection, v_FragNormal);
+        vec3 reflectDirection = reflect(-lightDirection, normal);
         specular += pow(max(dot(cameraDirection, reflectDirection), 0.0),
                 u_Material.specularHighlights) * u_Material.specularColor * lightColor
                 * lightIntensity;
@@ -95,9 +100,9 @@ void main() {
     ) {
         vec3 lightColor = u_DirectionalLighting[directionalLightIndex].color;
         vec3 lightDirection = normalize(-u_DirectionalLighting[0].direction);
-        diffuse += max(dot(v_FragNormal, lightDirection), 0.0)* lightColor;
+        diffuse += max(dot(normal, lightDirection), 0.0)* lightColor;
         vec3 cameraDirection = normalize(u_CameraPosition - v_FragPosition);
-        vec3 reflectDirection = reflect(-lightDirection, v_FragNormal);
+        vec3 reflectDirection = reflect(-lightDirection, normal);
         specular += pow(max(dot(cameraDirection, reflectDirection), 0.0)
                 u_Material.specularHighlights) * u_Material.specularColor * lightColor;
     }

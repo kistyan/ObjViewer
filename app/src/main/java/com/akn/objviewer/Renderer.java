@@ -41,14 +41,14 @@ public class Renderer implements GLSurfaceView.Renderer {
     private final HashMap<String, Integer> textureIds;
 
     private Material defaultMaterial;
-    private int defaultTextureId;
+    private int defaultTextureId, defaultNormalTextureId;
 
     private float scale, rotationX, rotationY, translationZ;
     private float viewXFactor, viewYFactor;
 
     private int modelShaders, aPositionLocation, aVertexNormalLocation, aTextureCoordinateLocation,
-            uModelMatrixLocation, uModelViewProjectionMatrixLocation, uNormalMatrixLocation,
-            uCameraPositionLocation;
+            aFaceTangentLocation, uModelMatrixLocation, uModelViewProjectionMatrixLocation,
+            uNormalMatrixLocation, uCameraPositionLocation;
     private final PointLightLocation[] uPointLightLocations
             = new PointLightLocation[POINT_LIGHT_COUNT];
     private final SpotLightLocation[] uSpotLightLocations = new SpotLightLocation[SPOT_LIGHT_COUNT];
@@ -88,6 +88,7 @@ public class Renderer implements GLSurfaceView.Renderer {
         aPositionLocation = glGetAttribLocation(programId, "a_Position");
         aVertexNormalLocation = glGetAttribLocation(programId, "a_VertexNormal");
         aTextureCoordinateLocation = glGetAttribLocation(programId, "a_TextureCoordinate");
+        aFaceTangentLocation = glGetAttribLocation(programId, "a_FaceTangent");
     }
 
     private void bindMatrixLocations(int programId) {
@@ -118,6 +119,8 @@ public class Renderer implements GLSurfaceView.Renderer {
                 = glGetUniformLocation(programId, "u_Material.specularTexture");
         uMaterialLocation.dissolveTexture
                 = glGetUniformLocation(programId, "u_Material.dissolveTexture");
+        uMaterialLocation.normalTexture
+                = glGetUniformLocation(programId, "u_Material.normalTexture");
     }
 
     private void bindPointLightLocations(int programId, int pointLightIndex) {
@@ -241,6 +244,9 @@ public class Renderer implements GLSurfaceView.Renderer {
         Bitmap defaultTexture = Bitmap.createBitmap(1, 1, Bitmap.Config.RGB_565);
         defaultTexture.setPixel(0, 0, Color.WHITE);
         defaultTextureId = loadTexture(defaultTexture);
+        defaultTexture.setPixel(0, 0, 0x80_80_ff);
+        defaultNormalTextureId = loadTexture(defaultTexture);
+        defaultTexture.recycle();
         for (String textureName : textures.keySet())
             textureIds.put(
                     textureName,
@@ -371,6 +377,18 @@ public class Renderer implements GLSurfaceView.Renderer {
         );
     }
 
+    private void loadFaceTangents() {
+        glEnableVertexAttribArray(aFaceTangentLocation);
+        glVertexAttribPointer(
+                aFaceTangentLocation,
+                3,
+                GL_FLOAT,
+                false,
+                0,
+                getBuffer(model.getFaceTangents())
+        );
+    }
+
     private void placeLighting() {
         PointLight pointLight = new PointLight();
         pointLight.setIntensity(10);
@@ -403,7 +421,7 @@ public class Renderer implements GLSurfaceView.Renderer {
         placeLighting();
     }
 
-    private int getTextureId(String textureName) {
+    private int getTextureId(String textureName, int defaultTextureId) {
         Integer textureId = textureIds.get(textureName);
         if (textureId == null)
             textureId = defaultTextureId;
@@ -432,17 +450,23 @@ public class Renderer implements GLSurfaceView.Renderer {
         glUniform1f(uMaterialLocation.dissolve, material.getDissolve());
         glUniform1f(uMaterialLocation.specularHighlights, material.getSpecularHighlights());
         glActiveTexture(GL_TEXTURE0);
-        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getAmbientTexture()));
+        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getAmbientTexture(), defaultTextureId));
         glUniform1i(uMaterialLocation.ambientTexture, 0);
         glActiveTexture(GL_TEXTURE1);
-        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getDiffuseTexture()));
+        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getDiffuseTexture(), defaultTextureId));
         glUniform1i(uMaterialLocation.diffuseTexture, 1);
         glActiveTexture(GL_TEXTURE2);
-        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getSpecularTexture()));
+        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getSpecularTexture(), defaultTextureId));
         glUniform1i(uMaterialLocation.specularTexture, 2);
         glActiveTexture(GL_TEXTURE3);
-        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getDissolveTexture()));
+        glBindTexture(GL_TEXTURE_2D, getTextureId(material.getDissolveTexture(), defaultTextureId));
         glUniform1i(uMaterialLocation.dissolveTexture, 3);
+        glActiveTexture(GL_TEXTURE4);
+        glBindTexture(
+                GL_TEXTURE_2D,
+                getTextureId(material.getNormalTexture(), defaultNormalTextureId)
+        );
+        glUniform1i(uMaterialLocation.normalTexture, 4);
     }
 
     private void loadMaterial(String materialName) {
@@ -602,6 +626,7 @@ public class Renderer implements GLSurfaceView.Renderer {
         loadVertices();
         loadVertexNormals();
         loadTextureCoordinates();
+        loadFaceTangents();
 
         for (Surface surface : model.getSurfaces()) {
             loadMaterial(surface.getMaterial());

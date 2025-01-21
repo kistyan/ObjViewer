@@ -5,7 +5,7 @@ public class Material {
             ambientColorR, ambientColorG, ambientColorB,
             specularColorR, specularColorG, specularColorB;
     private float dissolve, specularHighlights, opticalDensity;
-    private String diffuseTexture, ambientTexture, specularTexture, dissolveTexture;
+    private String diffuseTexture, ambientTexture, specularTexture, dissolveTexture, normalTexture;
 
     public Material() {
         diffuseColorR = diffuseColorG = diffuseColorB = 1;
@@ -121,5 +121,13 @@ public class Material {
 
     public void setDissolveTexture(String dissolveTexture) {
         this.dissolveTexture = dissolveTexture;
+    }
+
+    public String getNormalTexture() {
+        return normalTexture;
+    }
+
+    public void setNormalTexture(String normalTexture) {
+        this.normalTexture = normalTexture;
     }
 }
