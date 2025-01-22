@@ -95,17 +95,17 @@ public class ObjParser {
                         vertices.get(triangle[2][0])[1] - vertices.get(triangle[0][0])[1],
                         vertices.get(triangle[2][0])[2] - vertices.get(triangle[0][0])[2]
                 };
-                if (triangle[0][1] != null && triangle[1][1] != null && triangle[1][2] != null) {
+                if (triangle[0][1] != null && triangle[1][1] != null && triangle[2][1] != null) {
                     float[] deltaUV1 = new float[]{
                             textureCoordinates.get(triangle[1][1])[0]
-                                    - textureCoordinates.get(triangle[0][0])[0],
+                                    - textureCoordinates.get(triangle[0][1])[0],
                             textureCoordinates.get(triangle[1][1])[1]
-                                    - textureCoordinates.get(triangle[0][0])[1]
+                                    - textureCoordinates.get(triangle[0][1])[1]
                     }, deltaUV2 = new float[]{
                             textureCoordinates.get(triangle[2][1])[0]
-                                    - textureCoordinates.get(triangle[0][0])[0],
+                                    - textureCoordinates.get(triangle[0][1])[0],
                             textureCoordinates.get(triangle[2][1])[1]
-                                    - textureCoordinates.get(triangle[0][0])[1]
+                                    - textureCoordinates.get(triangle[0][1])[1]
                     };
                     float f = 1 / (deltaUV1[0] * deltaUV2[1] - deltaUV2[0] * deltaUV1[1]);
                     faceTangent = new Float[]{

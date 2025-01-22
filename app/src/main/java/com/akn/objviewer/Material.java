@@ -11,6 +11,7 @@ public class Material {
         diffuseColorR = diffuseColorG = diffuseColorB = 1;
         specularColorR = specularColorG = specularColorB = 1;
         dissolve = 1;
+        specularHighlights = 4;
     }
 
     public float getDiffuseColorR() {

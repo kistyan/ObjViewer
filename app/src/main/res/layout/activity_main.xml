@@ -13,8 +13,8 @@
         android:layout_height="wrap_content"
         android:paddingVertical="8dp"
         android:elevation="4dp"
-        android:orientation="vertical"
-        android:background="@color/white">
+        android:background="@color/white"
+        android:divider="@null">
 
     </ListView>
 
