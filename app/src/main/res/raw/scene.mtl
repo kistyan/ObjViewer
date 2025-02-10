@@ -1,0 +1,15 @@
+newmtl floor
+Ka 1 1 1
+Kd 0 0 0
+Ks 0 0 0
+map_Ka floor_ambient.png
+
+newmtl candle
+Ns 4
+map_Kd candle_diffuse.png
+
+newmtl flame
+Ka 1 1 1
+Kd 0 0 0
+Ks 0 0 0
+map_Ka flame_ambient.png

@@ -82,7 +82,7 @@ void main() {
                 / (lightDistance * lightDistance);
         if (acos(dot(lightDirection, normalize(-u_SpotLighting[spotLightIndex].direction)))
                 >= u_SpotLighting[spotLightIndex].angle)
-            break;
+            continue;
         diffuse += max(dot(normal, lightDirection), 0.0) * lightColor * lightIntensity;
         vec3 cameraDirection = normalize(u_CameraPosition - v_FragPosition);
         vec3 reflectDirection = reflect(-lightDirection, normal);

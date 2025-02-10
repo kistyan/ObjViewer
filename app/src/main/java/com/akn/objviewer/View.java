@@ -16,7 +16,7 @@ import androidx.dynamicanimation.animation.FloatPropertyCompat;
 import java.lang.reflect.Field;
 
 public class View extends GLSurfaceView {
-    private static final float SENSITIVITY = 16;
+    private static final float SENSITIVITY = 15;
 
     private static class FlingHandler extends FloatPropertyCompat<com.akn.objviewer.Renderer> {
         private float currentValue;
@@ -70,7 +70,11 @@ public class View extends GLSurfaceView {
 
         @Override
         public boolean onSingleTapUp(@NonNull MotionEvent motionEvent) {
-            return false;
+            renderer.castRay(
+                    (2f * motionEvent.getX()) / getWidth() - 1f,
+                    1f - (2f * motionEvent.getY()) / getHeight()
+            );
+            return true;
         }
 
         private float toAngle(float offset) {

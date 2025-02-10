@@ -4,6 +4,7 @@ import static android.opengl.GLES30.*;
 
 import android.content.Context;
 import android.graphics.Bitmap;
+import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.opengl.GLSurfaceView;
 import android.opengl.GLUtils;
@@ -29,18 +30,20 @@ public class Renderer implements GLSurfaceView.Renderer {
             MAX_SCALE = 2,
             DEFAULT_X_ROTATION = -45,
             DEFAULT_Y_ROTATION = -45,
-            DEFAULT_TRANSLATION_Z = 4;
-    private static final int POINT_LIGHT_COUNT = 1,
-            SPOT_LIGHT_COUNT = 0,
-            DIRECTIONAL_LIGHT_COUNT = 0;
+            DEFAULT_TRANSLATION_Z = 3.5f,
+            DEFAULT_HIT_SPHERE_RADIUS = 0.1f;
+    private static final int POINT_LIGHT_COUNT = 5,
+            SPOT_LIGHT_COUNT = 2,
+            DIRECTIONAL_LIGHT_COUNT = 0,
+            HIT_SPHERE_COUNT = 5;
 
     private final Context context;
-    private final Model model;
+    private final HashMap<Model, Object3d[]> models;
     private final HashMap<String, Material> materials;
     private final HashMap<String, Bitmap> textures;
     private final HashMap<String, Integer> textureIds;
 
-    private Material defaultMaterial;
+    private final Material defaultMaterial;
     private int defaultTextureId, defaultNormalTextureId;
 
     private float scale, rotationX, rotationY, translationZ;
@@ -56,13 +59,144 @@ public class Renderer implements GLSurfaceView.Renderer {
             = new DirectionalLightLocation[DIRECTIONAL_LIGHT_COUNT];
     private MaterialLocation uMaterialLocation;
     private final float[] projectionMatrix = new float[16],
-            viewMatrix = new float[16],
-            modelMatrix = new float[16];
+            viewMatrix = new float[16];
 
     private final PointLight[] pointLighting = new PointLight[POINT_LIGHT_COUNT];
     private final SpotLight[] spotLighting = new SpotLight[SPOT_LIGHT_COUNT];
     private final DirectionalLight[] directionalLighting
             = new DirectionalLight[DIRECTIONAL_LIGHT_COUNT];
+
+    private HitSphere[] hitSpheres = new HitSphere[HIT_SPHERE_COUNT];
+
+    private void loadScene() {
+        try {
+            materials.putAll(MtlParser.parse(IOUtils.toString(
+                    context.getResources().openRawResource(R.raw.scene),
+                    StandardCharsets.UTF_8
+            )));
+            String[] textureNames = new String[]{
+                    "floor_ambient.png",
+                    "candle_diffuse.png",
+                    "flame_ambient.png",
+            };
+            int[] textureResources = new int[]{
+                    R.raw.floor_ambient,
+                    R.raw.candle_diffuse,
+                    R.raw.flame_ambient
+            };
+            for (int textureIndex = 0; textureIndex < textureNames.length; textureIndex++)
+                textures.put(textureNames[textureIndex], BitmapFactory.decodeStream(
+                        context.getResources().openRawResource(textureResources[textureIndex])
+                ));
+
+            Model floor = ObjParser.parse(IOUtils.toString(
+                    context.getResources().openRawResource(R.raw.floor),
+                    StandardCharsets.UTF_8
+            ));
+            float[] sceneMatrix = new float[16];
+            Matrix.setIdentityM(sceneMatrix, 0);
+            Matrix.translateM(sceneMatrix, 0, 0, -4, 0);
+            Matrix.scaleM(sceneMatrix, 0, 3, 3, 3);
+
+            Object3d sceneObject = new Object3d();
+            Matrix.multiplyMM(
+                    sceneObject.getMatrix(), 0,
+                    sceneMatrix, 0,
+                    sceneObject.getMatrix(), 0
+            );
+
+            models.put(floor, new Object3d[]{sceneObject});
+
+            Model candle = ObjParser.parse(IOUtils.toString(
+                    context.getResources().openRawResource(R.raw.candle),
+                    StandardCharsets.UTF_8
+            ));
+            Model flame = ObjParser.parse(IOUtils.toString(
+                    context.getResources().openRawResource(R.raw.flame),
+                    StandardCharsets.UTF_8
+            ));
+            float[] candlesMatrix = new float[16];
+            Matrix.setIdentityM(candlesMatrix, 0);
+            Matrix.translateM(candlesMatrix, 0, 0, 0, 0.76f);
+            float angle = 360f / 5;
+            Object3d[] candleObjects = new Object3d[5], flameObjects = new Object3d[5];
+            for (int candleIndex = 0; candleIndex < 5; candleIndex++) {
+                float[] candleMatrix = new float[16];
+                Matrix.setRotateM(candleMatrix, 0, angle * candleIndex, 0, 1, 0);
+                Matrix.multiplyMM(candleMatrix, 0, candleMatrix, 0, candlesMatrix, 0);
+                Matrix.multiplyMM(candleMatrix, 0, sceneMatrix, 0, candleMatrix, 0);
+
+                candleObjects[candleIndex] = new Object3d();
+                Matrix.multiplyMM(
+                        candleObjects[candleIndex].getMatrix(), 0,
+                        candleMatrix, 0,
+                        candleObjects[candleIndex].getMatrix(), 0
+                );
+                flameObjects[candleIndex] = new Object3d();
+                Matrix.multiplyMM(
+                        flameObjects[candleIndex].getMatrix(), 0,
+                        candleMatrix, 0,
+                        flameObjects[candleIndex].getMatrix(), 0
+                );
+
+                PointLight pointLight = new PointLight();
+                Matrix.translateM(pointLight.getMatrix(), 0, 0, 0.405f, 0);
+                Matrix.multiplyMM(
+                        pointLight.getMatrix(), 0,
+                        candleMatrix, 0,
+                        pointLight.getMatrix(), 0
+                );
+                pointLight.setColor(0.659f, 0.694f, 0.765f);
+                final float pointLightIntensity = 4;
+                pointLight.setIntensity(pointLightIntensity);
+                pointLighting[candleIndex] = pointLight;
+
+                int finalCandleIndex = candleIndex;
+                hitSpheres[candleIndex] = new HitSphere(
+                        getPosition(pointLight.getMatrix()),
+                        DEFAULT_HIT_SPHERE_RADIUS,
+                        (HitSphere.OnHitListener) () -> {
+                            PointLight light = pointLighting[finalCandleIndex];
+                            if (flameObjects[finalCandleIndex].isEnabled()) {
+                                flameObjects[finalCandleIndex].setEnabled(false);
+                                light.setIntensity(0);
+                            }
+                            else {
+                                flameObjects[finalCandleIndex].setEnabled(true);
+                                light.setIntensity(pointLightIntensity);
+                            }
+                        }
+                );
+            }
+            models.put(candle, candleObjects);
+            models.put(flame, flameObjects);
+
+            SpotLight spotLight = new SpotLight();
+            Matrix.rotateM(spotLight.getMatrix(), 0, -135, 0, 1, 0);
+            Matrix.rotateM(spotLight.getMatrix(), 0, 45, 1, 0, 0);
+            Matrix.translateM(spotLight.getMatrix(), 0, 0, 0, -4);
+            spotLight.setIntensity(10);
+            spotLight.setAngle(8);
+            spotLighting[0] = spotLight;
+
+            spotLight = new SpotLight();
+            Matrix.rotateM(spotLight.getMatrix(), 0, 45, 0, 1, 0);
+            Matrix.rotateM(spotLight.getMatrix(), 0, 45, 1, 0, 0);
+            Matrix.translateM(spotLight.getMatrix(), 0, 0, 0, -4);
+            spotLight.setIntensity(10);
+            spotLight.setAngle(8);
+            spotLighting[1] = spotLight;
+        }
+        catch (IOException exception) {
+            throw new RuntimeException();
+        }
+    }
+
+    private void placeCameraLight() {
+        PointLight pointLight = new PointLight();
+        pointLight.setIntensity(8);
+        pointLighting[0] = pointLight;
+    }
 
     public Renderer(
             Context context,
@@ -71,10 +205,23 @@ public class Renderer implements GLSurfaceView.Renderer {
             HashMap<String, Bitmap> textures
     ) {
         this.context = context;
-        this.model = model;
         this.materials = materials;
         this.textures = textures;
         textureIds = new HashMap<>();
+        defaultMaterial = new Material();
+        setScale(DEFAULT_SCALE);
+        setTranslationZ(DEFAULT_TRANSLATION_Z);
+        setRotation(DEFAULT_X_ROTATION, DEFAULT_Y_ROTATION);
+        models = new HashMap<>();
+        Object3d modelObject = new Object3d();
+        Matrix.multiplyMM(
+                modelObject.getMatrix(), 0,
+                computeModelMatrix(model), 0,
+                modelObject.getMatrix(), 0
+        );
+        models.put(model, new Object3d[]{modelObject});
+        loadScene();
+        //placeCameraLight();
     }
 
     private int bindShader(int type, String source) {
@@ -254,7 +401,7 @@ public class Renderer implements GLSurfaceView.Renderer {
             );
     }
 
-    private void calculateModelMatrix() {
+    private float[] computeModelMatrix(Model model) {
         float[] center = new float[3], vertices = model.getVertices();
         for (int vertexStartIndex = 0; vertexStartIndex < vertices.length; vertexStartIndex += 3) {
             center[0] += vertices[vertexStartIndex];
@@ -274,9 +421,11 @@ public class Renderer implements GLSurfaceView.Renderer {
                 maxRadius = radius;
         }
         float scale = 1 / maxRadius;
+        float[] modelMatrix = new float[16];
         Matrix.setIdentityM(modelMatrix, 0);
         Matrix.scaleM(modelMatrix, 0, scale, scale, scale);
         Matrix.translateM(modelMatrix, 0, -center[0], -center[1], -center[2]);
+        return modelMatrix;
     }
 
     public float getScale() {
@@ -318,7 +467,6 @@ public class Renderer implements GLSurfaceView.Renderer {
 
     public void setTranslationZ(float translationZ) {
         this.translationZ = translationZ;
-        Matrix.setLookAtM(viewMatrix, 0, 0, 0, translationZ, 0, 0, 0, 0, 1, 0);
     }
 
     private FloatBuffer getBuffer(float[] array) {
@@ -341,58 +489,9 @@ public class Renderer implements GLSurfaceView.Renderer {
         return buffer;
     }
 
-    private void loadVertices() {
-        glEnableVertexAttribArray(aPositionLocation);
-        glVertexAttribPointer(
-                aPositionLocation,
-                3,
-                GL_FLOAT,
-                false,
-                0,
-                getBuffer(model.getVertices())
-        );
-    }
-
-    private void loadVertexNormals() {
-        glEnableVertexAttribArray(aVertexNormalLocation);
-        glVertexAttribPointer(
-                aVertexNormalLocation,
-                3,
-                GL_FLOAT,
-                false,
-                0,
-                getBuffer(model.getVertexNormals())
-        );
-    }
-
-    private void loadTextureCoordinates() {
-        glEnableVertexAttribArray(aTextureCoordinateLocation);
-        glVertexAttribPointer(
-                aTextureCoordinateLocation,
-                2,
-                GL_FLOAT,
-                false,
-                0,
-                getBuffer(model.getTextureCoordinates())
-        );
-    }
-
-    private void loadFaceTangents() {
-        glEnableVertexAttribArray(aFaceTangentLocation);
-        glVertexAttribPointer(
-                aFaceTangentLocation,
-                3,
-                GL_FLOAT,
-                false,
-                0,
-                getBuffer(model.getFaceTangents())
-        );
-    }
-
-    private void placeLighting() {
-        PointLight pointLight = new PointLight();
-        pointLight.setIntensity(10);
-        pointLighting[0] = pointLight;
+    private void loadFloatArrayAttribute(int location, int dimensionCount, FloatBuffer array) {
+        glEnableVertexAttribArray(location);
+        glVertexAttribPointer(location, dimensionCount, GL_FLOAT, false, 0, array);
     }
 
     @Override
@@ -410,15 +509,7 @@ public class Renderer implements GLSurfaceView.Renderer {
         bindMatrixLocations(modelShaders);
         bindMaterialLocations(modelShaders);
 
-        defaultMaterial = new Material();
         loadTextures();
-
-        setScale(DEFAULT_SCALE);
-        setTranslationZ(DEFAULT_TRANSLATION_Z);
-        calculateModelMatrix();
-        setRotation(DEFAULT_X_ROTATION, DEFAULT_Y_ROTATION);
-
-        placeLighting();
     }
 
     private int getTextureId(String textureName, int defaultTextureId) {
@@ -500,11 +591,22 @@ public class Renderer implements GLSurfaceView.Renderer {
         Matrix.translateM(cameraMatrix, 0, 0, 0, translationZ);
     }
 
+    private float[] getPosition(float[] matrix) {
+        float[] position = new float[]{0, 0, 0, 1};
+        Matrix.multiplyMV(position, 0, matrix, 0, position, 0);
+        return position;
+    }
+
+    private float[] getDirection(float[] matrix) {
+        float[] direction = new float[]{0, 0, 1, 0};
+        Matrix.multiplyMV(direction, 0, matrix, 0, direction, 0);
+        return direction;
+    }
+
     private void loadCamera() {
-        float[] cameraPosition = new float[]{0, 0, 0, 1},
-                cameraMatrix = new float[16];
+        float[] cameraMatrix = new float[16];
         updateCameraMatrix(cameraMatrix);
-        Matrix.multiplyMV(cameraPosition, 0, cameraMatrix, 0, cameraPosition, 0);
+        float[] cameraPosition = getPosition(cameraMatrix);
         glUniform3f(
                 uCameraPositionLocation,
                 cameraPosition[0],
@@ -537,8 +639,7 @@ public class Renderer implements GLSurfaceView.Renderer {
 
     private void loadSpotLight(SpotLightLocation spotLightLocation, SpotLight spotLight) {
         loadPointLight(spotLightLocation, spotLight);
-        float[] lightDirection = new float[]{0, 0, 1, 0};
-        Matrix.multiplyMV(lightDirection, 0, spotLight.getMatrix(), 0, lightDirection, 0);
+        float[] lightDirection = getDirection(spotLight.getMatrix());
         glUniform3f(
                 spotLightLocation.direction,
                 lightDirection[0],
@@ -553,8 +654,7 @@ public class Renderer implements GLSurfaceView.Renderer {
             DirectionalLight directionalLight
     ) {
         loadLight(directionalLightLocation, directionalLight);
-        float[] lightDirection = new float[]{0, 0, 1, 0};
-        Matrix.multiplyMV(lightDirection, 0, directionalLight.getMatrix(), 0, lightDirection, 0);
+        float[] lightDirection = getDirection(directionalLight.getMatrix());
         glUniform3f(
                 directionalLightLocation.direction,
                 lightDirection[0],
@@ -585,7 +685,14 @@ public class Renderer implements GLSurfaceView.Renderer {
             );
     }
 
-    private void loadMatrices() {
+    private void updateViewMatrix() {
+        Matrix.setLookAtM(viewMatrix, 0, 0, 0, translationZ, 0, 0, 0, 0, 1, 0);
+        Matrix.scaleM(viewMatrix, 0, scale, scale, 1);
+        Matrix.rotateM(viewMatrix, 0, -rotationX, 1, 0, 0);
+        Matrix.rotateM(viewMatrix, 0, rotationY, 0, 1, 0);
+    }
+
+    private void loadMatrices(float[] modelMatrix) {
         glUniformMatrix4fv(uModelMatrixLocation, 1, false, modelMatrix, 0);
         float[] normalMatrix = new float[9];
         Matrix3x3.from4x4(normalMatrix, modelMatrix);
@@ -595,23 +702,15 @@ public class Renderer implements GLSurfaceView.Renderer {
 
         float[] modelViewProjectionMatrix = new float[16];
         Matrix.setIdentityM(modelViewProjectionMatrix, 0);
-        Matrix.scaleM(modelViewProjectionMatrix, 0, scale, scale, 1);
         Matrix.multiplyMM(
                 modelViewProjectionMatrix, 0,
-                modelViewProjectionMatrix, 0,
+                projectionMatrix, 0,
                 viewMatrix, 0
         );
-        Matrix.rotateM(modelViewProjectionMatrix, 0, -rotationX, 1, 0, 0);
-        Matrix.rotateM(modelViewProjectionMatrix, 0, rotationY, 0, 1, 0);
         Matrix.multiplyMM(
                 modelViewProjectionMatrix, 0,
                 modelViewProjectionMatrix, 0,
                 modelMatrix, 0
-        );
-        Matrix.multiplyMM(
-                modelViewProjectionMatrix, 0,
-                projectionMatrix, 0,
-                modelViewProjectionMatrix, 0
         );
         glUniformMatrix4fv(
                 uModelViewProjectionMatrixLocation,
@@ -622,20 +721,29 @@ public class Renderer implements GLSurfaceView.Renderer {
         );
     }
 
-    private void drawModel() {
-        loadVertices();
-        loadVertexNormals();
-        loadTextureCoordinates();
-        loadFaceTangents();
-
-        for (Surface surface : model.getSurfaces()) {
-            loadMaterial(surface.getMaterial());
-            glDrawElements(
-                    GL_TRIANGLES,
-                    surface.getFaceIndices().length,
-                    GL_UNSIGNED_INT,
-                    getBuffer(surface.getFaceIndices())
-            );
+    private void drawModel(Model model) {
+        loadFloatArrayAttribute(aPositionLocation, 3, getBuffer(model.getVertices()));
+        loadFloatArrayAttribute(aVertexNormalLocation, 3, getBuffer(model.getVertexNormals()));
+        loadFloatArrayAttribute(
+                aTextureCoordinateLocation,
+                2,
+                getBuffer(model.getTextureCoordinates())
+        );
+        loadFloatArrayAttribute(aFaceTangentLocation, 3, getBuffer(model.getFaceTangents()));
+        for (Object3d object : models.get(model)) {
+            float[] modelMatrix = object.getMatrix();
+            if (!object.isEnabled())
+                continue;
+            loadMatrices(modelMatrix);
+            for (Surface surface : model.getSurfaces()) {
+                loadMaterial(surface.getMaterial());
+                glDrawElements(
+                        GL_TRIANGLES,
+                        surface.getFaceIndices().length,
+                        GL_UNSIGNED_INT,
+                        getBuffer(surface.getFaceIndices())
+                );
+            }
         }
     }
 
@@ -646,11 +754,54 @@ public class Renderer implements GLSurfaceView.Renderer {
         glUseProgram(modelShaders);
 
         loadCamera();
-        updateCameraMatrix(pointLighting[0].getMatrix());
+        //updateCameraMatrix(pointLighting[0].getMatrix());
         loadLighting();
-        loadMatrices();
-        drawModel();
+        updateViewMatrix();
+
+        for (Model model : models.keySet())
+            drawModel(model);
 
         //System.out.println(glGetError());
+    }
+
+    private float dot(float[] vec1, float[] vec2) {
+        return vec1[0] * vec2[0] + vec1[1] * vec2[1] + vec1[2] * vec2[2];
+    }
+
+    private float[] normalize(float[] vector) {
+        float length = (float) Math.sqrt(dot(vector, vector));
+        if (length > 0) {
+            return new float[]{vector[0] / length, vector[1] / length, vector[2] / length};
+        }
+        return vector;
+    }
+
+    public void castRay(float screenX, float screenY) {
+        updateViewMatrix();
+        float[] nearClipSpace = new float[]{screenX, screenY, -1.0f, 1.0f};
+        float[] farClipSpace = new float[]{screenX, screenY, 1.0f, 1.0f};
+
+        float[] worldPositionNear = new float[4];
+        float[] worldPositionFar = new float[4];
+
+        float[] invertedMatrix = new float[16];
+        Matrix.multiplyMM(invertedMatrix, 0, projectionMatrix, 0, viewMatrix, 0);
+        Matrix.invertM(invertedMatrix, 0, invertedMatrix, 0);
+        Matrix.multiplyMV(worldPositionNear, 0, invertedMatrix, 0, nearClipSpace, 0);
+        Matrix.multiplyMV(worldPositionFar, 0, invertedMatrix, 0, farClipSpace, 0);
+
+        for (int i = 0; i < 4; i++) {
+            worldPositionNear[i] /= worldPositionNear[3];
+            worldPositionFar[i] /= worldPositionFar[3];
+        }
+
+        float[] direction = new float[3];
+        direction[0] = worldPositionFar[0] - worldPositionNear[0];
+        direction[1] = worldPositionFar[1] - worldPositionNear[1];
+        direction[2] = worldPositionFar[2] - worldPositionNear[2];
+        direction = normalize(direction);
+
+        for (HitSphere hitSphere : hitSpheres)
+            hitSphere.onRayCasted(worldPositionNear, direction);
     }
 }
